@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>AI Shift Simulator 3D</title>
+<style>
+:root{--ink:#e8ecf4;--card:#1a2030;--line:#2a3247;--acc:#3b82f6;--mute:#9aa4b8;--bad:#ef4444;--ok:#22c55e}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#0b0f17;color:var(--ink);font:16px/1.5 system-ui,Segoe UI,sans-serif}
+canvas{display:block;position:fixed;inset:0}
+.hidden{display:none!important}
+.overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(8,11,18,.7);padding:16px;overflow:auto;z-index:10}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;width:100%;max-width:640px}
+h1{margin:0 0 4px;font-size:1.5rem}h2{margin:0 0 8px;font-size:1.15rem}
+.mute{color:var(--mute)}
+input,textarea,select{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:#10141c;color:var(--ink);font:inherit}
+textarea{min-height:150px;resize:vertical}
+button{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:10px 18px;font:inherit;cursor:pointer}
+button.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.row{display:flex;gap:12px;flex-wrap:wrap}.row>*{flex:1 1 200px}
+.bar{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:8px}
+kbd{background:#10141c;border:1px solid var(--line);border-radius:4px;padding:1px 6px}
+#hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+#top{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;gap:12px;padding:10px 16px;background:linear-gradient(#000a,#0000);font-variant-numeric:tabular-nums}
+#top b{display:block;font-size:1.3rem}
+#top .low{color:var(--bad)}
+#obj{position:absolute;top:64px;left:50%;transform:translateX(-50%);background:#0009;padding:6px 14px;border-radius:20px;font-size:.95rem;text-align:center;max-width:90vw}
+#cross{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#fff9}
+#prompt{position:absolute;left:50%;top:58%;transform:translateX(-50%);background:var(--acc);padding:8px 16px;border-radius:8px;font-weight:600}
+#joy{position:absolute;left:28px;bottom:28px;width:140px;height:140px;border-radius:50%;background:#ffffff22;border:2px solid #ffffff66;pointer-events:auto;touch-action:none}
+#knob{position:absolute;left:50%;top:50%;width:60px;height:60px;margin:-30px;border-radius:50%;background:#ffffffaa;box-shadow:0 2px 8px #0006}
+#act{position:absolute;right:28px;bottom:40px;width:84px;height:84px;border-radius:50%;font-weight:700;font-size:1.1rem;pointer-events:auto;touch-action:none}
+/* ---- responsive / touch ---- */
+html,body{touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+input,textarea{-webkit-user-select:text;user-select:text;touch-action:auto}
+.overlay{align-items:flex-start;touch-action:pan-y;-webkit-overflow-scrolling:touch}
+.overlay .card{margin:auto}
+.bar{flex-wrap:wrap}
+#joy{left:calc(24px + env(safe-area-inset-left));bottom:calc(24px + env(safe-area-inset-bottom))}
+#act{right:calc(24px + env(safe-area-inset-right));bottom:calc(36px + env(safe-area-inset-bottom))}
+#top{padding-top:calc(10px + env(safe-area-inset-top))}
+#feed{top:104px;bottom:auto;left:calc(12px + env(safe-area-inset-left));width:min(320px,62vw);font-size:.82rem}
+#feed .msg{padding:4px 8px}
+@media (pointer:coarse){#joy{width:160px;height:160px}#knob{width:68px;height:68px;margin:-34px}#act{width:96px;height:96px}}
+@media (min-width:900px){#feed{top:auto;bottom:16px;left:210px;width:min(420px,50vw)}}
+@media (max-width:600px){#top{padding-left:12px;padding-right:12px}#top b{font-size:1.05rem}#obj{top:calc(52px + env(safe-area-inset-top));font-size:.82rem;padding:4px 12px}#feed{top:calc(92px + env(safe-area-inset-top))}.card{padding:14px}h1{font-size:1.3rem}}
+@media (max-height:520px){
+ #joy{width:120px;height:120px;bottom:12px;left:calc(14px + env(safe-area-inset-left))}#knob{width:50px;height:50px;margin:-25px}
+ #act{width:72px;height:72px;bottom:18px}
+ #top b{font-size:1rem}#obj{top:6px}#prompt{top:50%}
+ #feed{top:44px;width:min(300px,40vw)}#feed .msg:not(:nth-last-child(-n+2)){display:none}
+ textarea{min-height:90px}.overlay .score{font-size:2rem}
+}
+#feed{position:absolute}
+.msg{background:#000b;border-left:4px solid var(--acc);padding:6px 10px;margin-top:6px;border-radius:0 8px 8px 0;font-size:.9rem}
+.msg b{color:#7fb0ff}
+pre.src{white-space:pre-wrap;background:#10141c;border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit;font-size:.9rem}
+table{width:100%;border-collapse:collapse}td,th{padding:6px;border-bottom:1px solid var(--line);text-align:left;font-size:.88rem}
+.score{font-size:2.6rem;font-weight:800;text-align:center}
+.cert{border:8px double #b8892b;background:#fffdf5;color:#2b2415;text-align:center;padding:28px 20px;border-radius:6px;margin-top:12px}
+.cert h1{font-family:Georgia,serif;letter-spacing:2px;color:#7a5a12}
+.cert .name{font:italic 2rem Georgia,serif;margin:10px 0;border-bottom:1px solid #b8892b;display:inline-block;padding:0 24px}
+.cert .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:16px 0;text-align:left}
+.cert .grid div{border:1px solid #e3d6ad;padding:6px 8px;border-radius:6px;font-size:.85rem}
+.cert small{display:block;color:#8a7a50}
+@media print{
+ body{background:#fff;overflow:visible}canvas,#hud,#start,#taskpanel,.no-print{display:none!important}
+ #result{position:static;background:#fff;display:block}.card{background:#fff;border:0;max-width:none;color:#000}
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="top">
+    <div><span class="mute">Clock</span><b id="clock"></b></div>
+    <div><span class="mute">Shift time</span><b id="elapsed">00:00</b></div>
+    <div><span class="mute" id="tname">Task</span><b id="left">--:--</b></div>
+  </div>
+  <div id="obj"></div>
+  <div id="cross"></div>
+  <div id="prompt" class="hidden">Tap <b>USE</b> or press <kbd>E</kbd> to start the task</div>
+  <div id="feed"></div>
+  <div id="joy"><div id="knob"></div></div>
+  <button id="act" class="hidden">USE</button>
+</div>
+
+<div id="start" class="overlay">
+  <div class="card">
+    <h1>AI Shift Simulator 3D</h1>
+    <p class="mute">Walk around a 3D office as an <b>Office Administrator</b>. An AI supervisor sends you to stations for tasks, tracks your time, grades your work and issues a certificate.</p>
+    <p class="mute" id="hint"></p>
+    <div class="row">
+      <div><label>Your full name</label><input id="name" maxlength="60" placeholder="e.g. Ryan Steve"></div>
+      <div><label>Session length</label><select id="mode"><option value="1">Full shift (about 25 min)</option><option value="0.3">Quick demo (about 8 min)</option></select></div>
+    </div>
+    <p><button id="go">Clock in &amp; start shift</button></p>
+  </div>
+</div>
+
+<div id="taskpanel" class="overlay hidden">
+  <div class="card">
+    <h2 id="ttitle"></h2>
+    <div class="msg"><b>Supervisor:</b> <span id="tbrief"></span></div>
+    <pre class="src hidden" id="tsrc"></pre>
+    <textarea id="ans" placeholder="Type your work here..."></textarea>
+    <div class="bar"><span class="mute" id="wc">0 words</span><span id="tleft" class="mute"></span>
+      <span><button class="alt" id="close">Step away</button> <button id="submit">Submit task</button></span></div>
+  </div>
+</div>
+
+<div id="result" class="overlay hidden">
+  <div class="card">
+    <h2 style="text-align:center">Shift review</h2>
+    <div class="score" id="total"></div>
+    <div id="verdict" style="font-weight:700;text-align:center"></div>
+    <table class="no-print"><thead><tr><th>Task</th><th>Score</th><th>Time</th><th>Feedback</th></tr></thead><tbody id="rows"></tbody></table>
+    <div id="certbox"></div>
+    <div class="bar no-print"><button class="alt" id="again">New shift</button><button id="print">Print / save certificate as PDF</button></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ---------- task data & grading (same as 2D version) ---------- */
+const TASKS=[
+ {station:0,title:"Draft a meeting-schedule email",limit:240,
+  brief:"Reschedule tomorrow's 10:00 team meeting to Thursday 14:00 in Room B. Write the email to the team. Be polite and clear.",
+  min:40,groups:[["thursday"],["14:00","2pm","2 pm","2:00"],["room b"],["reschedule","moved","change"],["apolog","sorry","inconvenience"],["regards","thanks","thank you","sincerely"],["dear","hi ","hello"]]},
+ {station:1,title:"Summarize a document",limit:240,
+  src:"MEMO: Q3 office supplies spending rose 18% over Q2, mostly from printer toner and ad-hoc courier costs. Three vendors supply 80% of stock. The finance team asks departments to consolidate orders monthly, use the approved vendor list, and submit requests by the 25th. Savings target: 10% by end of Q4.",
+  brief:"Summarize the memo below in 2-3 sentences for the department head.",
+  min:25,max:90,groups:[["18%","rose","increase"],["toner","courier"],["consolidate","monthly"],["approved vendor","vendor"],["25th"],["10%","savings"]]},
+ {station:2,title:"Prioritize today's to-do list",limit:240,
+  src:"A) Print visitor badges for 2pm client visit\nB) Reorder coffee supplies\nC) Fix jammed printer on floor 2 (CEO's assistant waiting)\nD) File last month's invoices\nE) Book flights for Friday's board trip",
+  brief:"Rank these tasks from most to least urgent and give a one-line reason for each.",
+  min:35,groups:[["a"],["c"],["e"],["urgent","priority","first"],["because","since","reason","-"],["client"],["board","friday"]]},
+ {station:3,title:"Handle an upset caller",limit:240,
+  brief:"A client phones: their invoice was charged twice. Write what you would say and the steps you will take.",
+  min:45,groups:[["apolog","sorry"],["understand","frustrat","appreciate"],["invoice","charge"],["refund","credit","correct"],["finance","accounts","team"],["24","48","hours","today","within"],["follow up","follow-up","confirm","email","call back"]]},
+ {station:4,title:"Clean up a data entry",limit:200,
+  src:"john smith | 12/3/2024 | JOHN@MAIL.COM | $1,200\nANNA  LEE | 2024-03-15 | anna@mail | 950\nmary o'neil|15 Mar 2024|mary@mail.com|$ 1 050",
+  brief:"Rewrite these 3 records in one consistent format: Name | YYYY-MM-DD | lowercase email | amount. Flag anything that looks wrong.",
+  min:25,groups:[["john smith"],["anna lee"],["mary o'neil","mary o’neil"],["2024-03-15"],["john@mail.com"],["anna@mail","invalid","incomplete","missing",".com"],["1200","1,200"]]}
+];
+const WALK_BONUS=60; // extra seconds per task to walk to the station
+const CHATTER=["Keep an eye on the clock. Deadlines are firm.","Clear, professional wording matters.","Stay focused. The director is walking the floor today.","Good pace. Keep going.","Remember to proofread before you submit."];
+
+const $=id=>document.getElementById(id);
+const fmt=s=>{s=Math.max(0,Math.floor(s));return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")};
+const timeStr=d=>d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+const words=t=>(t.trim().match(/\S+/g)||[]).length;
+
+function grade(t,text,used,limit){
+  const w=words(text),low=text.toLowerCase();
+  const hit=t.groups.filter(g=>g.some(k=>low.includes(k))).length;
+  const content=hit/t.groups.length*60;
+  let len=20;
+  if(w<t.min)len=20*w/t.min;
+  if(t.max&&w>t.max)len=Math.max(8,20-(w-t.max)/3);
+  const time=used<=limit*0.8?20:used<=limit?14:6;
+  const fb=[hit+"/"+t.groups.length+" key points"];
+  if(w<t.min)fb.push("too short ("+w+" words)");
+  if(t.max&&w>t.max)fb.push("too long");
+  fb.push(used<=limit*0.8?"finished early":used<=limit?"on time":"overran time");
+  return {score:w===0?0:Math.min(100,Math.round(content+len+time)),fb:fb.join("; ")};
+}
+
+/* ---------- 3D scene ---------- */
+const renderer=new THREE.WebGLRenderer({canvas:$("c"),antialias:true});
+const TOUCH=matchMedia("(pointer:coarse)").matches;
+renderer.setPixelRatio(Math.min(devicePixelRatio,TOUCH?1.5:2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x9fb4c8);
+scene.fog=new THREE.Fog(0x9fb4c8,18,45);
+const camera=new THREE.PerspectiveCamera(70,1,0.15,100);
+camera.rotation.order="YXZ";
+function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()}
+addEventListener("resize",resize);
+addEventListener("orientationchange",()=>setTimeout(resize,250));
+resize();
+$("hint").innerHTML=TOUCH
+  ?"<b>Joystick</b> (bottom left) to move &middot; <b>drag anywhere else</b> to look around &middot; <b>USE</b> button to interact. Best in landscape."
+  :"<b>Joystick</b> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> to move &middot; <b>drag the mouse</b> or arrow keys to look &middot; <b>USE</b> button or <kbd>E</kbd> to interact";
+document.addEventListener("contextmenu",e=>e.preventDefault());
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x667788,0.75));
+const sun=new THREE.DirectionalLight(0xffffff,0.5);sun.position.set(8,12,6);scene.add(sun);
+[[-5,3.6,0],[5,3.6,0]].forEach(p=>{const l=new THREE.PointLight(0xfff2dd,0.5,22);l.position.set(...p);scene.add(l)});
+
+const colliders=[];
+function mat(c,o){return new THREE.MeshLambertMaterial(Object.assign({color:c},o||{}))}
+function box(w,h,d,c,x,y,z,parent,opts){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(c,opts));
+  m.position.set(x,y,z);(parent||scene).add(m);return m;
+}
+function solid(w,h,d,c,x,y,z){box(w,h,d,c,x,y,z);colliders.push({x,z,w,d})}
+
+const RW=26,RD=20; // room size
+// floor, ceiling, walls
+box(RW,0.1,RD,0x7d8793,0,-0.05,0);
+box(RW,0.1,RD,0xf1f1ee,0,4,0);
+box(RW,4,0.2,0xe8e4da,0,2,-RD/2);
+box(RW,4,0.2,0xe8e4da,0,2,RD/2);
+box(0.2,4,RD,0xe8e4da,-RW/2,2,0);
+box(0.2,4,RD,0xe8e4da,RW/2,2,0);
+// carpet stripe
+box(3,0.02,RD-1,0x4a6fa5,0,0.01,0);
+// windows on east wall
+for(let i=-2;i<=2;i++)box(0.05,1.6,2.2,0x8fd0ff,RW/2-0.12,2.2,i*3.6,null,{emissive:0x335577});
+// ceiling light panels
+for(let x=-8;x<=8;x+=8)for(let z=-6;z<=6;z+=6)box(2,0.05,1,0xffffff,x,3.95,z,null,{emissive:0xffffee});
+
+function desk(x,z,rot){
+  const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rot||0;scene.add(g);
+  box(3,0.1,1.5,0xa9764a,0,0.8,0,g);
+  [[-1.4,-.65],[1.4,-.65],[-1.4,.65],[1.4,.65]].forEach(p=>box(0.1,0.8,0.1,0x444a55,p[0],0.4,p[1],g));
+  return g;
+}
+function monitor(g,x,z,big){
+  const s=big?1.5:1;
+  box(0.1,0.25,0.1,0x222222,x,0.97,z,g);
+  box(0.8*s,0.5*s,0.05,0x111418,x,1.3,z,g);
+  box(0.72*s,0.42*s,0.02,0x4aa3ff,x,1.3,z+0.03,g,{emissive:0x2266aa});
+}
+function chair(x,z,rot){
+  const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rot||0;scene.add(g);
+  colliders.push({x,z,w:0.7,d:0.7});
+  box(0.6,0.1,0.6,0x2d3748,0,0.5,0,g);box(0.6,0.7,0.1,0x2d3748,0,0.9,-0.3,g);box(0.1,0.5,0.1,0x666,0,0.25,0,g);
+}
+function person(x,z,rot,color,seated){
+  const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rot;scene.add(g);
+  colliders.push({x,z,w:0.6,d:0.6});
+  const h=seated?0.35:0;
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.3,0.9,12),mat(color));body.position.y=0.95-h;g.add(body);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.2,16,12),mat(0xe0b896));head.position.y=1.65-h;g.add(head);
+  if(!seated){const l=box(0.4,0.5,0.25,0x2b2f3a,0,0.25,0,g)}
+  return g;
+}
+function plant(x,z){
+  const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
+  const pot=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.22,0.5,10),mat(0x8b4a2b));pot.position.y=0.25;g.add(pot);
+  const leaf=new THREE.Mesh(new THREE.SphereGeometry(0.5,10,8),mat(0x2f8f4e));leaf.position.y=0.95;g.add(leaf);
+  colliders.push({x,z,w:0.7,d:0.7});
+}
+
+// --- stations ---
+const stations=[];
+// 0: your desk (email)
+{const g=desk(7,-7);colliders.push({x:7,z:-7,w:3,d:1.5});monitor(g,0,-0.2);box(0.5,0.03,0.2,0x333,0,0.87,0.35,g);chair(7,-8.3,0);
+ stations.push({name:"Your desk",pos:new THREE.Vector3(7,0,-5.6)});}
+// 1: meeting table (summary)
+{solid(4.4,0.12,2.2,0x8a5d38,0,0.85,-2);colliders.pop();colliders.push({x:0,z:-2,w:4.4,d:2.2});
+ box(0.3,0.85,0.3,0x444a55,0,0.42,-2);
+ [-1.6,-0.5,0.6,1.6].forEach(x=>{chair(x,-3.5,0);chair(x,-0.5,Math.PI)});
+ box(0.5,0.02,0.7,0xffffff,0.2,0.92,-2);
+ stations.push({name:"Meeting table",pos:new THREE.Vector3(0,0,0.6)});}
+// 2: whiteboard (west wall)
+{box(0.1,1.8,4,0xffffff,-RW/2+0.1,2,3);box(0.14,1.9,4.1,0x888,-RW/2+0.08,2,3);
+ for(let i=0;i<6;i++)box(0.02,0.04,2.4-i*0.2,[0x2563eb,0xdc2626,0x16a34a][i%3],-RW/2+0.16,2.6-i*0.22,2.6);
+ stations.push({name:"Whiteboard",pos:new THREE.Vector3(-RW/2+2.2,0,3)});}
+// 3: reception phone desk
+{const g=desk(6,6,Math.PI);colliders.push({x:6,z:6,w:3,d:1.5});
+ box(0.5,0.12,0.3,0x111,0.4,0.9,0,g);box(0.35,0.08,0.1,0x111,0.4,1,0,g);monitor(g,-0.6,0);chair(6,7.3,Math.PI);
+ stations.push({name:"Reception desk",pos:new THREE.Vector3(6,0,4.5)});}
+// 4: data terminal
+{const g=desk(-6,7,Math.PI);colliders.push({x:-6,z:7,w:3,d:1.5});monitor(g,-0.7,0,true);monitor(g,0.7,0,true);chair(-6,8.3,Math.PI);
+ stations.push({name:"Data terminal",pos:new THREE.Vector3(-6,0,5.5)});}
+
+// supervisor corner office desk
+{const g=desk(-8,-8);colliders.push({x:-8,z:-8,w:3,d:1.5});monitor(g,0.6,0.1);box(0.7,0.04,0.3,0xffd166,-0.8,0.87,0.1,g);}
+const supervisor=person(-8,-6.7,0,0xb83280);
+// supervisor name tag
+function label(text,color){
+  const c=document.createElement("canvas");c.width=256;c.height=64;const x=c.getContext("2d");
+  x.fillStyle="rgba(0,0,0,.65)";x.fillRect(0,0,256,64);x.fillStyle=color||"#fff";x.font="bold 30px sans-serif";x.textAlign="center";x.fillText(text,128,43);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));s.scale.set(1.4,0.35,1);return s;
+}
+const sl=label("AI Supervisor","#ffd166");sl.position.set(0,2.2,0);supervisor.add(sl);
+
+// coworkers
+const coworkers=[];
+[[3,-8,0x3b82f6],[10.5,-1.5,0x10b981],[-9,2,0xf59e0b]].forEach((p,i)=>{
+  if(i<2){const g=desk(p[0],p[1],i?Math.PI/2:0);colliders.push(i?{x:p[0],z:p[1],w:1.5,d:3}:{x:p[0],z:p[1],w:3,d:1.5});monitor(g,0,-0.2)}
+  coworkers.push(person(p[0]+(i===1?-1.2:0),p[1]+(i===0?1.2:0),i===1?-Math.PI/2:Math.PI,p[2],i<2));
+});
+plant(-11.5,-9);plant(11.5,9);plant(-11.5,9);plant(11.5,-9);plant(-1,9);
+// filing cabinets
+for(let i=0;i<3;i++)solid(0.8,1.5,0.7,0x6b7280,-3+i*0.9,0.75,-9.4);
+
+// wall clock (real time)
+const clockCv=document.createElement("canvas");clockCv.width=256;clockCv.height=256;
+const clockTex=new THREE.CanvasTexture(clockCv);
+const clockMesh=new THREE.Mesh(new THREE.CircleGeometry(0.6,32),new THREE.MeshBasicMaterial({map:clockTex}));
+clockMesh.position.set(0,3.1,-RD/2+0.12);scene.add(clockMesh);
+function drawClock(){
+  const x=clockCv.getContext("2d"),d=new Date();
+  x.fillStyle="#fff";x.fillRect(0,0,256,256);x.strokeStyle="#222";x.lineWidth=10;x.beginPath();x.arc(128,128,120,0,7);x.stroke();
+  const hand=(a,l,w)=>{x.lineWidth=w;x.beginPath();x.moveTo(128,128);x.lineTo(128+Math.sin(a)*l,128-Math.cos(a)*l);x.stroke()};
+  hand(((d.getHours()%12)+d.getMinutes()/60)/12*6.283,60,10);hand((d.getMinutes()+d.getSeconds()/60)/60*6.283,90,7);
+  x.strokeStyle="#d00";hand(d.getSeconds()/60*6.283,100,3);
+  x.fillStyle="#222";x.font="bold 28px sans-serif";x.textAlign="center";x.fillText(d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}),128,200);
+  clockTex.needsUpdate=true;
+}
+drawClock();
+
+// objective marker
+const marker=new THREE.Group();
+marker.add(new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.7,3.5,24,1,true),new THREE.MeshBasicMaterial({color:0xffd166,transparent:true,opacity:0.28,side:THREE.DoubleSide})));
+const ring=new THREE.Mesh(new THREE.TorusGeometry(0.7,0.05,8,32),new THREE.MeshBasicMaterial({color:0xffd166}));ring.rotation.x=Math.PI/2;ring.position.y=0.05;marker.add(ring);
+marker.position.y=1.75;marker.visible=false;scene.add(marker);
+
+/* ---------- game state & controls ---------- */
+let G=null; // session
+let player={x:0,z:7,yaw:0,pitch:0};
+const keys={};
+let lastT=performance.now(),playing=false,panelOpen=false;
+const PR=0.45,WALL_GAP=0.8; // body radius; keeps the camera well clear of walls
+
+const kk={},KEYS=["KeyW","KeyA","KeyS","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"];
+addEventListener("keydown",e=>{
+  if(panelOpen||!playing||/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;
+  if(e.code==="KeyE"){tryInteract();return}
+  if(KEYS.includes(e.code)){kk[e.code]=true;e.preventDefault()}
+});
+addEventListener("keyup",e=>{kk[e.code]=false});
+addEventListener("blur",()=>{for(const k in kk)kk[k]=false});
+
+/* virtual joystick (move) */
+const JR=50; // knob travel radius in px
+let joy={id:null,x:0,y:0};
+function joyUpdate(e){
+  const r=$("joy").getBoundingClientRect();
+  let dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2);
+  const len=Math.hypot(dx,dy);if(len>JR){dx*=JR/len;dy*=JR/len}
+  joy.x=dx/JR;joy.y=dy/JR;
+  $("knob").style.transform="translate("+dx+"px,"+dy+"px)";
+}
+function joyReset(){joy={id:null,x:0,y:0};$("knob").style.transform="none"}
+$("joy").addEventListener("pointerdown",e=>{e.preventDefault();joy.id=e.pointerId;$("joy").setPointerCapture(e.pointerId);joyUpdate(e)});
+$("joy").addEventListener("pointermove",e=>{if(e.pointerId===joy.id)joyUpdate(e)});
+["pointerup","pointercancel"].forEach(t=>$("joy").addEventListener(t,e=>{if(e.pointerId===joy.id)joyReset()}));
+$("act").addEventListener("pointerdown",e=>{e.preventDefault();if(playing&&!panelOpen)tryInteract()});
+
+/* drag to look */
+let look=null;
+$("c").addEventListener("pointerdown",e=>{if(!playing||panelOpen)return;look={id:e.pointerId,x:e.clientX,y:e.clientY};$("c").setPointerCapture(e.pointerId)});
+$("c").addEventListener("pointermove",e=>{
+  if(!look||e.pointerId!==look.id)return;
+  player.yaw-=(e.clientX-look.x)*0.005;
+  player.pitch=Math.max(-1.2,Math.min(1.2,player.pitch-(e.clientY-look.y)*0.005));
+  look.x=e.clientX;look.y=e.clientY;
+});
+["pointerup","pointercancel"].forEach(t=>$("c").addEventListener(t,e=>{if(look&&e.pointerId===look.id)look=null}));
+
+function move(dt){
+  const sp=2.2*dt; // max walking speed (units/second)
+  const dead=0.15,mag=Math.hypot(joy.x,joy.y);
+  // curved response: small pushes give slow, precise steps
+  const k=mag<dead?0:Math.pow(Math.min(1,(mag-dead)/(1-dead)),1.5)/mag;
+  let fwd=-joy.y*k,str=joy.x*k;
+  const kf=(kk.KeyW?1:0)-(kk.KeyS?1:0),ks=(kk.KeyD?1:0)-(kk.KeyA?1:0);
+  if(kf||ks){const l=Math.hypot(kf,ks);fwd=kf/l;str=ks/l}
+  if(kk.ArrowLeft)player.yaw+=1.8*dt;if(kk.ArrowRight)player.yaw-=1.8*dt;
+  if(kk.ArrowUp)player.pitch=Math.min(1.2,player.pitch+1.2*dt);if(kk.ArrowDown)player.pitch=Math.max(-1.2,player.pitch-1.2*dt);
+  const sy=Math.sin(player.yaw),cy=Math.cos(player.yaw);
+  const fx=-sy*fwd+cy*str,fz=-cy*fwd-sy*str;
+  const px=player.x,pz=player.z;
+  player.x+=fx*sp;player.z+=fz*sp;
+  // resolve furniture, then re-clamp to the walls; repeat so a push-out can never leave the room
+  for(let pass=0;pass<4;pass++){
+    for(const c of colliders){
+      const hx=c.w/2+PR,hz=c.d/2+PR,dx=player.x-c.x,dz=player.z-c.z;
+      if(Math.abs(dx)<hx&&Math.abs(dz)<hz){
+        if(hx-Math.abs(dx)<hz-Math.abs(dz))player.x=c.x+Math.sign(dx||1)*hx;
+        else player.z=c.z+Math.sign(dz||1)*hz;
+      }
+    }
+    player.x=Math.max(-RW/2+WALL_GAP,Math.min(RW/2-WALL_GAP,player.x));
+    player.z=Math.max(-RD/2+WALL_GAP,Math.min(RD/2-WALL_GAP,player.z));
+  }
+  // final safety net: if still inside any solid, undo this step
+  if(colliders.some(c=>Math.abs(player.x-c.x)<c.w/2+PR-0.001&&Math.abs(player.z-c.z)<c.d/2+PR-0.001)){player.x=px;player.z=pz}
+}
+
+function nearStation(){
+  if(!G||G.done)return false;
+  const s=stations[TASKS[G.i].station];
+  return Math.hypot(player.x-s.pos.x,player.z-s.pos.z)<2.2;
+}
+function tryInteract(){
+  if(nearStation())openPanel();
+}
+
+/* ---------- feed ---------- */
+function feed(text){
+  const d=document.createElement("div");d.className="msg";d.innerHTML="<b>"+timeStr(new Date())+"</b> "+text;
+  $("feed").appendChild(d);
+  while($("feed").children.length>4)$("feed").removeChild($("feed").firstChild);
+  setTimeout(()=>{if(d.parentNode)d.remove()},14000);
+}
+
+/* ---------- session flow ---------- */
+$("go").onclick=()=>{
+  const name=$("name").value.trim();
+  if(!name){$("name").focus();return}
+  G={name,k:parseFloat($("mode").value),start:new Date(),i:0,results:[],msgAt:0,done:false};
+  player={x:0,z:7,yaw:0,pitch:0};
+  $("start").classList.add("hidden");$("hud").classList.remove("hidden");$("feed").innerHTML="";
+  playing=true;
+  feed("Welcome, "+name+". Shift started. I'll send you to each station.");
+  assignTask();
+};
+function assignTask(){
+  const t=TASKS[G.i];
+  G.tStart=new Date();G.msgAt=0;G.limit=Math.round((t.limit+WALK_BONUS)*G.k);G.opened=false;
+  $("ans").value="";$("wc").textContent="0 words";
+  $("tname").textContent="Task "+(G.i+1)+"/"+TASKS.length;
+  feed("Task "+(G.i+1)+": <i>"+t.title+"</i>. Go to the <b>"+stations[t.station].name+"</b> (yellow beam). You have "+fmt(G.limit)+".");
+}
+function openPanel(){
+  const t=TASKS[G.i];
+  panelOpen=true;G.opened=true;
+  joyReset();look=null;$("act").classList.add("hidden");
+  $("ttitle").textContent="Task "+(G.i+1)+": "+t.title;
+  $("tbrief").textContent=t.brief;
+  const s=$("tsrc");if(t.src){s.textContent=t.src;s.classList.remove("hidden")}else s.classList.add("hidden");
+  $("taskpanel").classList.remove("hidden");$("ans").focus();
+}
+function closePanel(){panelOpen=false;$("taskpanel").classList.add("hidden")}
+$("close").onclick=closePanel;
+$("ans").oninput=()=>{$("wc").textContent=words($("ans").value)+" words"};
+$("submit").onclick=()=>submit(false);
+
+function submit(auto){
+  const t=TASKS[G.i];
+  const used=Math.min((new Date()-G.tStart)/1000,G.limit);
+  const r=grade(t,$("ans").value,used,G.limit);
+  G.results.push({title:t.title,score:r.score,time:used,fb:r.fb});
+  closePanel();
+  feed(auto?"Time's up on task "+(G.i+1)+". Auto-submitted. Score: "+r.score+".":"Task "+(G.i+1)+" received. Score: "+r.score+"/100. "+(r.score>=75?"Nice work.":r.score>=50?"Acceptable.":"We need better."));
+  G.i++;
+  if(G.i>=TASKS.length)finish();else assignTask();
+}
+
+function finish(){
+  G.done=true;G.end=new Date();playing=false;joyReset();
+  $("hud").classList.add("hidden");$("result").classList.remove("hidden");
+  const total=Math.round(G.results.reduce((a,r)=>a+r.score,0)/G.results.length);
+  const pass=total>=60;
+  const tier=total>=90?"Outstanding":total>=75?"Strong":total>=60?"Satisfactory":"Needs improvement";
+  $("total").textContent=total+" / 100";
+  $("verdict").textContent=(pass?"PASS":"NOT PASSED")+" - "+tier;
+  $("verdict").style.color=pass?"var(--ok)":"var(--bad)";
+  $("rows").innerHTML=G.results.map((r,i)=>"<tr><td>"+(i+1)+". "+r.title+"</td><td>"+r.score+"</td><td>"+fmt(r.time)+"</td><td>"+r.fb+"</td></tr>").join("");
+  const id="ASS-"+G.end.getFullYear()+"-"+Math.random().toString(36).slice(2,8).toUpperCase();
+  if(pass){
+    $("certbox").innerHTML='<div class="cert"><h1>CERTIFICATE OF COMPLETION</h1><div>This certifies that</div><div class="name"></div>'+
+    '<div>successfully completed a real-time 3D work simulation for the position of <b>Office Administrator</b></div>'+
+    '<div class="grid"><div><small>Date</small>'+G.start.toLocaleDateString()+'</div><div><small>Clocked in</small>'+timeStr(G.start)+'</div><div><small>Clocked out</small>'+timeStr(G.end)+'</div><div><small>Total time</small>'+fmt((G.end-G.start)/1000)+'</div><div><small>Score</small>'+total+'/100 ('+tier+')</div><div><small>Certificate ID</small>'+id+'</div></div>'+
+    '<small>Issued by AI Shift Simulator. This is a practice simulation, not an accredited qualification.</small></div>';
+    $("certbox").querySelector(".name").textContent=G.name;
+    $("print").classList.remove("hidden");
+  }else{
+    $("certbox").innerHTML='<p class="mute">No certificate issued. A score of 60 or more is needed. Review the feedback above and start a new shift.</p>';
+    $("print").classList.add("hidden");
+  }
+}
+$("print").onclick=()=>window.print();
+$("again").onclick=()=>{$("result").classList.add("hidden");$("start").classList.remove("hidden")};
+
+/* ---------- main loop ---------- */
+let clockAcc=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=Math.min(0.05,(now-lastT)/1000);lastT=now;
+  if(playing&&!panelOpen)move(dt);
+  camera.position.set(player.x,1.65,player.z);
+  camera.rotation.set(player.pitch,player.yaw,0);
+
+  // animate NPCs & marker
+  const tt=now/1000;
+  coworkers.forEach((c,i)=>{c.position.y=Math.sin(tt*1.5+i)*0.02});
+  supervisor.rotation.y=Math.atan2(player.x-supervisor.position.x,player.z-supervisor.position.z);
+  clockAcc+=dt;if(clockAcc>1){clockAcc=0;drawClock()}
+
+  if(playing&&G&&!G.done){
+    const nowD=new Date();
+    $("clock").textContent=timeStr(nowD);
+    $("elapsed").textContent=fmt((nowD-G.start)/1000);
+    const used=(nowD-G.tStart)/1000,left=G.limit-used;
+    $("left").textContent=fmt(left);$("left").classList.toggle("low",left<=30);
+    $("tleft").textContent="Time left "+fmt(left);
+    if(left<=0){submit(true)}
+    else if(used>G.msgAt+G.limit*0.4){G.msgAt=used;feed(CHATTER[Math.floor(Math.random()*CHATTER.length)])}
+    if(G&&!G.done){
+      const st=stations[TASKS[G.i].station];
+      marker.visible=true;marker.position.x=st.pos.x;marker.position.z=st.pos.z;
+      marker.rotation.y=tt;ring.position.y=-1.7+Math.abs(Math.sin(tt*2))*0.4;
+      const near=nearStation();
+      const dist=Math.hypot(player.x-st.pos.x,player.z-st.pos.z);
+      $("obj").textContent=near?"You're at the "+st.name:"Go to: "+st.name+" ("+Math.round(dist)+" m)";
+      $("prompt").classList.toggle("hidden",!(near&&!panelOpen));
+      $("act").classList.toggle("hidden",!(near&&!panelOpen));
+    }
+  }else marker.visible=false;
+  renderer.render(scene,camera);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
